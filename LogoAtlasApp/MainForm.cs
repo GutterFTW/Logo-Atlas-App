@@ -16,6 +16,10 @@ namespace LogoAtlasApp
     public class MainForm : Form
     {
         // UI controls used across the form
+        private MenuStrip menuStrip;        // Menu bar with Settings menu
+        private ToolStripMenuItem settingsMenu; // Settings menu item
+        private ToolStripMenuItem lightModeMenuItem; // Light mode menu item
+        private ToolStripMenuItem darkModeMenuItem;  // Dark mode menu item
         private Button btnSelect;           // Button to open file dialog and select PNG files
         private NumericUpDown numColumns;   // Numeric control for number of columns (1..6)
         private Label lblColumns;           // Label for columns control
@@ -33,6 +37,7 @@ namespace LogoAtlasApp
         private NumericUpDown numPadding;   // Numeric control for padding in pixels
         private string? lastSavedPath;      // Path to last saved atlas (for Open Saved)
         private ToolTip tooltip;            // ToolTip instance used to show help for each control
+        private bool isDarkMode = false;    // Current theme state
 
         private const int MaxColumns = 6; // maximum allowed columns
         private const int MaxRows = 4;    // maximum allowed rows
@@ -46,6 +51,21 @@ namespace LogoAtlasApp
             Text = "Logo Atlas Creator";
             Width = 800;
             Height = 600;
+
+            // Initialize menu strip
+            menuStrip = new MenuStrip();
+            settingsMenu = new ToolStripMenuItem("Settings");
+            lightModeMenuItem = new ToolStripMenuItem("Light Mode");
+            darkModeMenuItem = new ToolStripMenuItem("Dark Mode");
+            
+            // Wire up menu events
+            lightModeMenuItem.Click += (s, e) => SetTheme(false);
+            darkModeMenuItem.Click += (s, e) => SetTheme(true);
+            
+            // Add menu items
+            settingsMenu.DropDownItems.Add(lightModeMenuItem);
+            settingsMenu.DropDownItems.Add(darkModeMenuItem);
+            menuStrip.Items.Add(settingsMenu);
 
             // Initialize controls
             btnSelect = new Button { Text = "Select PNGs", Width = 100, Height = 24 };
@@ -121,6 +141,8 @@ namespace LogoAtlasApp
             Controls.Add(pictureBox);
             Controls.Add(lblStatus);
             Controls.Add(topPanel);
+            Controls.Add(menuStrip);
+            MainMenuStrip = menuStrip;
 
             // Initialize and configure ToolTip component
             tooltip = new ToolTip();
@@ -143,6 +165,10 @@ namespace LogoAtlasApp
             tooltip.SetToolTip(btnOpenSaved, "Open the last saved atlas file with the default system viewer.");
             tooltip.SetToolTip(pictureBox, "Preview of the atlas layout. Thumbnails of selected images are shown in their grid cells.");
             tooltip.SetToolTip(lblStatus, "Status messages about selection, generation and save operations.");
+
+            // Load saved theme preference and apply initial theme
+            LoadThemePreference();
+            ApplyTheme();
 
             // Draw initial empty grid preview so users see the layout immediately
             UpdatePreviewGrid();
@@ -383,7 +409,8 @@ namespace LogoAtlasApp
             using (var g = Graphics.FromImage(preview))
             {
                 // Background and high-quality drawing settings for preview
-                g.Clear(Color.DarkGray);
+                Color previewBg = isDarkMode ? Color.FromArgb(40, 40, 40) : Color.DarkGray;
+                g.Clear(previewBg);
                 // Use high-quality compositing and interpolation to produce smooth thumbnails
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
@@ -398,8 +425,13 @@ namespace LogoAtlasApp
                 float scaledCellH = cellInnerH * scale; // scaled height of a single cell
                 float spacing = padding * scale; // scaled spacing between cells
 
-                using (var pen = new Pen(Color.FromArgb(200, Color.Black), 1))
-                using (var gridPen = new Pen(Color.FromArgb(200, Color.LightYellow), 2))
+                Color cellBorderColor = isDarkMode ? Color.FromArgb(200, 80, 80, 80) : Color.FromArgb(200, Color.Black);
+                Color gridBorderColor = isDarkMode ? Color.FromArgb(200, 120, 120, 120) : Color.FromArgb(200, Color.LightYellow);
+                Color cellFillColor = isDarkMode ? Color.FromArgb(60, 60, 60) : Color.DimGray;
+
+                using (var pen = new Pen(cellBorderColor, 1))
+                using (var gridPen = new Pen(gridBorderColor, 2))
+                using (var cellBrush = new SolidBrush(cellFillColor))
                 {
                     // Draw each cell rectangle and, if available, a thumbnail for the corresponding image
                     int used = Math.Min(images.Count, cols * rows);
@@ -414,7 +446,7 @@ namespace LogoAtlasApp
                             var rect = new RectangleF(x, y, scaledCellW, scaledCellH);
 
                             // Fill and border for the cell to make it visible in preview
-                            g.FillRectangle(Brushes.DimGray, rect);
+                            g.FillRectangle(cellBrush, rect);
                             g.DrawRectangle(pen, x, y, scaledCellW, scaledCellH);
 
                             int idx = r * cols + c; // index of image for this cell
@@ -537,6 +569,167 @@ namespace LogoAtlasApp
                 }
                 cachedImages = null;
             }
+        }
+
+        /// <summary>
+        /// Set the application theme (light or dark mode).
+        /// </summary>
+        /// <param name="darkMode">True for dark mode, false for light mode</param>
+        private void SetTheme(bool darkMode)
+        {
+            isDarkMode = darkMode;
+            SaveThemePreference();
+            ApplyTheme();
+        }
+
+        /// <summary>
+        /// Apply the current theme to all controls in the form.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            // Update menu checkmarks
+            lightModeMenuItem.Checked = !isDarkMode;
+            darkModeMenuItem.Checked = isDarkMode;
+
+            if (isDarkMode)
+            {
+                // Dark mode colors
+                BackColor = Color.FromArgb(30, 30, 30);
+                ForeColor = Color.White;
+                
+                menuStrip.BackColor = Color.FromArgb(45, 45, 48);
+                menuStrip.ForeColor = Color.White;
+                
+                btnSelect.BackColor = Color.FromArgb(60, 60, 60);
+                btnSelect.ForeColor = Color.White;
+                btnSelect.FlatStyle = FlatStyle.Flat;
+                btnSelect.FlatAppearance.BorderColor = Color.FromArgb(100, 100, 100);
+                
+                btnGenerate.BackColor = Color.FromArgb(60, 60, 60);
+                btnGenerate.ForeColor = Color.White;
+                btnGenerate.FlatStyle = FlatStyle.Flat;
+                btnGenerate.FlatAppearance.BorderColor = Color.FromArgb(100, 100, 100);
+                
+                btnOpenSaved.BackColor = Color.FromArgb(60, 60, 60);
+                btnOpenSaved.ForeColor = Color.White;
+                btnOpenSaved.FlatStyle = FlatStyle.Flat;
+                btnOpenSaved.FlatAppearance.BorderColor = Color.FromArgb(100, 100, 100);
+                
+                lblColumns.ForeColor = Color.White;
+                lblRows.ForeColor = Color.White;
+                lblResolution.ForeColor = Color.White;
+                lblPadding.ForeColor = Color.White;
+                lblStatus.BackColor = Color.FromArgb(45, 45, 48);
+                lblStatus.ForeColor = Color.White;
+                
+                numColumns.BackColor = Color.FromArgb(60, 60, 60);
+                numColumns.ForeColor = Color.White;
+                numRows.BackColor = Color.FromArgb(60, 60, 60);
+                numRows.ForeColor = Color.White;
+                numPadding.BackColor = Color.FromArgb(60, 60, 60);
+                numPadding.ForeColor = Color.White;
+                
+                comboResolution.BackColor = Color.FromArgb(60, 60, 60);
+                comboResolution.ForeColor = Color.White;
+                comboResolution.FlatStyle = FlatStyle.Flat;
+                
+                pictureBox.BackColor = Color.FromArgb(40, 40, 40);
+            }
+            else
+            {
+                // Light mode colors
+                BackColor = SystemColors.Control;
+                ForeColor = SystemColors.ControlText;
+                
+                menuStrip.BackColor = SystemColors.Control;
+                menuStrip.ForeColor = SystemColors.ControlText;
+                
+                btnSelect.BackColor = SystemColors.Control;
+                btnSelect.ForeColor = SystemColors.ControlText;
+                btnSelect.FlatStyle = FlatStyle.Standard;
+                
+                btnGenerate.BackColor = SystemColors.Control;
+                btnGenerate.ForeColor = SystemColors.ControlText;
+                btnGenerate.FlatStyle = FlatStyle.Standard;
+                
+                btnOpenSaved.BackColor = SystemColors.Control;
+                btnOpenSaved.ForeColor = SystemColors.ControlText;
+                btnOpenSaved.FlatStyle = FlatStyle.Standard;
+                
+                lblColumns.ForeColor = SystemColors.ControlText;
+                lblRows.ForeColor = SystemColors.ControlText;
+                lblResolution.ForeColor = SystemColors.ControlText;
+                lblPadding.ForeColor = SystemColors.ControlText;
+                lblStatus.BackColor = SystemColors.Control;
+                lblStatus.ForeColor = SystemColors.ControlText;
+                
+                numColumns.BackColor = SystemColors.Window;
+                numColumns.ForeColor = SystemColors.WindowText;
+                numRows.BackColor = SystemColors.Window;
+                numRows.ForeColor = SystemColors.WindowText;
+                numPadding.BackColor = SystemColors.Window;
+                numPadding.ForeColor = SystemColors.WindowText;
+                
+                comboResolution.BackColor = SystemColors.Window;
+                comboResolution.ForeColor = SystemColors.WindowText;
+                comboResolution.FlatStyle = FlatStyle.Standard;
+                
+                pictureBox.BackColor = SystemColors.Control;
+            }
+            
+            // Redraw preview with new colors
+            UpdatePreviewGrid();
+        }
+
+        /// <summary>
+        /// Load the theme preference from application settings.
+        /// </summary>
+        private void LoadThemePreference()
+        {
+            try
+            {
+                var settingsPath = GetSettingsPath();
+                if (File.Exists(settingsPath))
+                {
+                    var setting = File.ReadAllText(settingsPath).Trim();
+                    isDarkMode = setting.Equals("dark", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                // If loading fails, use default (light mode)
+                isDarkMode = false;
+            }
+        }
+
+        /// <summary>
+        /// Save the current theme preference to application settings.
+        /// </summary>
+        private void SaveThemePreference()
+        {
+            try
+            {
+                var settingsPath = GetSettingsPath();
+                var settingsDir = Path.GetDirectoryName(settingsPath);
+                if (!string.IsNullOrEmpty(settingsDir) && !Directory.Exists(settingsDir))
+                {
+                    Directory.CreateDirectory(settingsDir);
+                }
+                File.WriteAllText(settingsPath, isDarkMode ? "dark" : "light");
+            }
+            catch
+            {
+                // Silently ignore save errors
+            }
+        }
+
+        /// <summary>
+        /// Get the path to the settings file.
+        /// </summary>
+        private string GetSettingsPath()
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(appData, "LogoAtlasApp", "theme.txt");
         }
     }
 }
