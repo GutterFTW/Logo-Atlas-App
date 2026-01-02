@@ -25,6 +25,7 @@ namespace LogoAtlasApp
         private Button btnOpenSaved;        // Button to open the last saved atlas
         private PictureBox pictureBox;      // Preview area showing the atlas grid and thumbnails
         private List<string> images = new List<string>(); // Paths of selected images
+        private List<Image?>? cachedImages;  // Cached loaded images for preview to avoid repeated disk I/O
         private Label lblStatus;            // Status label to show messages to the user
         private Label lblResolution;        // Label for resolution dropdown
         private ComboBox comboResolution;   // Dropdown to pick atlas resolution (1024/2048/4096)
@@ -148,6 +149,19 @@ namespace LogoAtlasApp
         }
 
         /// <summary>
+        /// Override Dispose to properly clean up cached images when the form is disposed.
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeCachedImages();
+                tooltip?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        /// <summary>
         /// Handler for the Select PNGs button. Opens file dialog and stores selected file paths.
         /// Also updates rows automatically based on columns and number of selected images.
         /// </summary>
@@ -162,6 +176,10 @@ namespace LogoAtlasApp
                     // Store selected images and notify user
                     images = ofd.FileNames.ToList();
                     lblStatus.Text = $"Selected {images.Count} images";
+
+                    // Dispose old cached images and load new ones into cache
+                    DisposeCachedImages();
+                    LoadImagesToCache();
 
                     // Ensure the grid settings can accommodate the selected images; this may adjust rows/columns and inform the user
                     EnsureGridCapacity();
@@ -404,10 +422,11 @@ namespace LogoAtlasApp
                             {
                                 try
                                 {
-                                    // Load image for thumbnail and draw it scaled into the cell area.
-                                    // Use a using block to ensure we don't leak file handles in preview.
-                                    using (var img = Image.FromFile(images[idx]))
+                                    // Use cached image for thumbnail instead of loading from disk.
+                                    // This prevents lag when adjusting padding or other settings.
+                                    if (cachedImages != null && idx < cachedImages.Count && cachedImages[idx] != null)
                                     {
+                                        var img = cachedImages[idx]!; // null-checked above
                                         float imgScale = Math.Min(scaledCellW / img.Width, scaledCellH / img.Height);
                                         int dw = Math.Max(1, (int)(img.Width * imgScale));
                                         int dh = Math.Max(1, (int)(img.Height * imgScale));
@@ -476,6 +495,48 @@ namespace LogoAtlasApp
             numRows.Value = MaxRows;
             int maxCapacity = MaxColumns * MaxRows;
             MessageBox.Show($"Selected {images.Count} images exceed the maximum grid capacity of {maxCapacity}. The grid has been set to {MaxColumns}x{MaxRows} and only the first {maxCapacity} images will be used.", "Grid Capacity Exceeded", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Load selected images into cache to avoid repeated disk I/O during preview updates.
+        /// This prevents lag when adjusting padding or other settings.
+        /// </summary>
+        private void LoadImagesToCache()
+        {
+            if (images == null || images.Count == 0)
+            {
+                cachedImages = null;
+                return;
+            }
+
+            cachedImages = new List<Image?>();
+            foreach (var path in images)
+            {
+                try
+                {
+                    cachedImages.Add(Image.FromFile(path));
+                }
+                catch
+                {
+                    // If an image fails to load, add null to maintain index alignment
+                    cachedImages.Add(null);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Dispose all cached images to free memory when selecting new images.
+        /// </summary>
+        private void DisposeCachedImages()
+        {
+            if (cachedImages != null)
+            {
+                foreach (var img in cachedImages)
+                {
+                    img?.Dispose();
+                }
+                cachedImages = null;
+            }
         }
     }
 }
