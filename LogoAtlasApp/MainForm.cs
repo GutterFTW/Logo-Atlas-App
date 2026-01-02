@@ -25,7 +25,7 @@ namespace LogoAtlasApp
         private Button btnOpenSaved;        // Button to open the last saved atlas
         private PictureBox pictureBox;      // Preview area showing the atlas grid and thumbnails
         private List<string> images = new List<string>(); // Paths of selected images
-        private List<Image>? cachedImages;  // Cached loaded images for preview to avoid repeated disk I/O
+        private List<Image?>? cachedImages;  // Cached loaded images for preview to avoid repeated disk I/O
         private Label lblStatus;            // Status label to show messages to the user
         private Label lblResolution;        // Label for resolution dropdown
         private ComboBox comboResolution;   // Dropdown to pick atlas resolution (1024/2048/4096)
@@ -146,6 +146,19 @@ namespace LogoAtlasApp
 
             // Draw initial empty grid preview so users see the layout immediately
             UpdatePreviewGrid();
+        }
+
+        /// <summary>
+        /// Override Dispose to properly clean up cached images when the form is disposed.
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeCachedImages();
+                tooltip?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         /// <summary>
@@ -413,7 +426,7 @@ namespace LogoAtlasApp
                                     // This prevents lag when adjusting padding or other settings.
                                     if (cachedImages != null && idx < cachedImages.Count && cachedImages[idx] != null)
                                     {
-                                        var img = cachedImages[idx];
+                                        var img = cachedImages[idx]!; // null-checked above
                                         float imgScale = Math.Min(scaledCellW / img.Width, scaledCellH / img.Height);
                                         int dw = Math.Max(1, (int)(img.Width * imgScale));
                                         int dh = Math.Max(1, (int)(img.Height * imgScale));
@@ -496,7 +509,7 @@ namespace LogoAtlasApp
                 return;
             }
 
-            cachedImages = new List<Image>();
+            cachedImages = new List<Image?>();
             foreach (var path in images)
             {
                 try
@@ -506,7 +519,7 @@ namespace LogoAtlasApp
                 catch
                 {
                     // If an image fails to load, add null to maintain index alignment
-                    cachedImages.Add(null!);
+                    cachedImages.Add(null);
                 }
             }
         }
