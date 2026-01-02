@@ -409,7 +409,8 @@ namespace LogoAtlasApp
             using (var g = Graphics.FromImage(preview))
             {
                 // Background and high-quality drawing settings for preview
-                g.Clear(Color.DarkGray);
+                Color previewBg = isDarkMode ? Color.FromArgb(40, 40, 40) : Color.DarkGray;
+                g.Clear(previewBg);
                 // Use high-quality compositing and interpolation to produce smooth thumbnails
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
@@ -424,8 +425,13 @@ namespace LogoAtlasApp
                 float scaledCellH = cellInnerH * scale; // scaled height of a single cell
                 float spacing = padding * scale; // scaled spacing between cells
 
-                using (var pen = new Pen(Color.FromArgb(200, Color.Black), 1))
-                using (var gridPen = new Pen(Color.FromArgb(200, Color.LightYellow), 2))
+                Color cellBorderColor = isDarkMode ? Color.FromArgb(200, 80, 80, 80) : Color.FromArgb(200, Color.Black);
+                Color gridBorderColor = isDarkMode ? Color.FromArgb(200, 120, 120, 120) : Color.FromArgb(200, Color.LightYellow);
+                Color cellFillColor = isDarkMode ? Color.FromArgb(60, 60, 60) : Color.DimGray;
+
+                using (var pen = new Pen(cellBorderColor, 1))
+                using (var gridPen = new Pen(gridBorderColor, 2))
+                using (var cellBrush = new SolidBrush(cellFillColor))
                 {
                     // Draw each cell rectangle and, if available, a thumbnail for the corresponding image
                     int used = Math.Min(images.Count, cols * rows);
@@ -440,7 +446,7 @@ namespace LogoAtlasApp
                             var rect = new RectangleF(x, y, scaledCellW, scaledCellH);
 
                             // Fill and border for the cell to make it visible in preview
-                            g.FillRectangle(Brushes.DimGray, rect);
+                            g.FillRectangle(cellBrush, rect);
                             g.DrawRectangle(pen, x, y, scaledCellW, scaledCellH);
 
                             int idx = r * cols + c; // index of image for this cell
